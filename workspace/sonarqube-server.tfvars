@@ -26,7 +26,7 @@ data_disk_size_gb = "15"
 
 admin_username = "centos"
 
+##
 ## Password must be between 6-72 characters long and must satisfy at least 3
+##
 admin_password = "JUFDtKqHn8G2Nkgm4f"
-
-security_group_name = "network-sg"

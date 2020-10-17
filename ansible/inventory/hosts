@@ -1,4 +1,4 @@
-vm-sonarqube-0 ansible_host=13.67.73.241
+vm-sonarqube-0 ansible_host=13.67.32.206
 
 [sonarqube]
 vm-sonarqube-0

@@ -38,24 +38,6 @@ module "virtual_machine" {
   admin_password         = var.admin_password
 }
 
-#module "network_security_group" {
-#  source              = "./modules/network_security_group"
-#  resource_group_name = module.resource_group.resource_group_name
-#  security_group_name = var.security_group_name
-#  custom_rules = [
-#    {
-#      name                                  = "sonarqube"
-#      priority                              = 201
-#      direction                             = "Inbound"
-#      access                                = "Allow"
-#      protocol                              = "tcp"
-#      source_port_range                     = "*"
-#      destination_port_range                = "9000"
-#      description                           = "sonarqube"
-#    },
-#  ]
-#}
-
 resource "azurerm_network_security_group" "default" {
   name                = "network-sg"
   location            = var.location
@@ -80,13 +62,13 @@ resource "azurerm_network_security_group" "default" {
     access                     = "Allow"
     protocol                   = "Tcp"
     source_port_range          = "*"
-    destination_port_range     = "9000"
+    destination_port_range     = "8080"
     source_address_prefix      = "Internet"
     destination_address_prefix = "*"
   }
 }
 
-resource "azurerm_subnet_network_security_group_association" "web-windows-vm-nsg-association" {
+resource "azurerm_subnet_network_security_group_association" "default" {
   subnet_id                 = module.virtual_network.virtual_network_subnets[0]
   network_security_group_id = azurerm_network_security_group.default.id
 }

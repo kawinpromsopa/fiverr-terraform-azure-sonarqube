@@ -20,206 +20,70 @@ These types of resources are supported:
    - SonarQube
 
 ## Usage
-- 
+
+- Customize Terraform values into `./workspace/sonarqube-server.tfvars`
 
 ```
-module "resource_group" {
-  source                = "./modules/azure/resource_group"
+resource_group_name = "rg-sonarqube"
 
-  name     = "Goanywhere-SFTP"
-  location = "Uk South"
+location = "Southeast Asia"
 
-  tags          = {
-    name        = "Goanywhere-SFTP",
-    resolver_group = "",
-    service        = "",
-    primary_application = "",
-    secondary_application = "",
-    consumer      = "",
-    contract      = "",
-    business_owner = "",
-    application_owner = "",
-    environment   = "",
-    run_book  = "",
-    review_date = "",
-    initial_CRQ = "",
-    WBS         = "",
-    compliance  = ""
-  }
-}
+virtual_network_name = "vnet-sonarqube"
 
-module "virtual_network" {
-  source                 = "./modules/azure/virtual_network"
-  resource_group_name    = module.resource_group.resource_group_name
+address_space = ["10.0.0.0/16"]
 
-  virtual_network_name   = "TBC"
-  address_space          = ["10.0.0.0/16"]
-  subnet_prefixes        = ["10.0.1.0/24"]
-  subnet_names           = ["private_subnet"]
-}
+subnet_prefixes = ["10.0.1.0/24"]
 
-module "container_registry" {
-  source                   = "./modules/azure/container_registry"
-  resource_group_name      = module.resource_group.resource_group_name
+subnet_names = ["sonarqube_subnet"]
 
-  name                     = "GASFTPACR-1fe4e2al" # must be uniqe name.
-  location                 = "Uk South"
-  sku                      = "Premium"
+virtual_machine_count = 1
 
-  tags          = {
-    name        = "GASFTPACR-1fe4e2al",
-    resolver_group = "",
-    service        = "",
-    primary_application = "",
-    secondary_application = "",
-    consumer      = "",
-    contract      = "",
-    business_owner = "",
-    application_owner = "",
-    environment   = "",
-    run_book  = "",
-    review_date = "",
-    initial_CRQ = "",
-    WBS         = "",
-    compliance  = ""
-  }
-}
+virtual_machine_name = "vm-sonarqube"
 
+vm_size = "Standard_DS1_v2"
 
-module "container_instances_0" {
-  source                = "./modules/azure/container_instances"
+publisher = "RedHat"
 
-  aci = {
-      terraform = {
-          resource_group_name = module.resource_group.resource_group_name
-          name                = "Goanywhere-SFTP01"
-          location            = "Uk South"
-          ip_address_type     = "public"
-          dns_name_label      = "GASFTPACR"
-          restart_policy      = "OnFailure"
-          os_type             = "Linux"
+offer = "RHEL"
 
-          tags                = {
-             name        = "Goanywhere-SFTP01",
-             resolver_group = "",
-             service        = "",
-             primary_application = "",
-             secondary_application = "",
-             consumer      = "",
-             contract      = "",
-             business_owner = "",
-             application_owner = "",
-             environment   = "",
-             run_book  = "",
-             review_date = "",
-             initial_CRQ = "",
-             WBS         = "",
-             compliance  = ""
-          }
+sku = "7.5"
 
-          containers          = {
-            goanywhere-sftp01 = {
-                image     = "store/helpsystems/goanywhere-mft:6.5.1"
-                cpu       = 2
-                memory    = 4
-                ports     = [
-                  {
-                      port     = 22
-                      protocol = "TCP"
-                  },
-                  {
-                      port     = 443
-                      protocol = "TCP"
-                  },
-                  {
-                      port     = 1433
-                      protocol = "TCP"
-                  },
-                  {
-                      port     = 8000
-                      protocol = "TCP"
-                  },
-                  {
-                      port     = 8001
-                      protocol = "TCP"
-                  },
-          ]
-        }
-      }
-    }
-  }
-}
+data_disk_size_gb = "15"
 
-module "container_instances_1" {
-  source                = "./modules/azure/container_instances"
+admin_username = "centos"
 
-  aci = {
-      terraform = {
-          resource_group_name = module.resource_group.resource_group_name
-          name                = "Goanywhere-SFTP02"
-          location            = "Uk South"
-          ip_address_type     = "public"
-          dns_name_label      = "GASFTPACR"
-          restart_policy      = "OnFailure"
-          os_type             = "Linux"
-
-          tags                = {
-             name        = "Goanywhere-SFTP02",
-             resolver_group = "",
-             service        = "",
-             primary_application = "",
-             secondary_application = "",
-             consumer      = "",
-             contract      = "",
-             business_owner = "",
-             application_owner = "",
-             environment   = "",
-             run_book  = "",
-             review_date = "",
-             initial_CRQ = "",
-             WBS         = "",
-             compliance  = ""
-          }
-
-          containers          = {
-            goanywhere-sftp02 = {
-                image     = "store/helpsystems/goanywhere-mft:6.5.1"
-                cpu       = 2
-                memory    = 4
-                ports     = [
-                  {
-                      port     = 22
-                      protocol = "TCP"
-                  },
-                  {
-                      port     = 443
-                      protocol = "TCP"
-                  },
-                  {
-                      port     = 1433
-                      protocol = "TCP"
-                  },
-                  {
-                      port     = 8000
-                      protocol = "TCP"
-                  },
-                  {
-                      port     = 8001
-                      protocol = "TCP"
-                  },
-          ]
-        }
-      }
-    }
-  }
-}
+##
+## Password must be between 6-72 characters long and must satisfy at least 3
+##
+admin_password = "JUFDtKqHn8G2Nkgm4f"
 ```
 
+## Azure Authenticate and terraform init, apply
 
-## Authenticate and terraform init, apply
 ```
 az login
 terraform init
-terraform apply 
+terraform apply -var-file="./workspace/sonarqube-server.tfvars"
 ```
 
+- After created an instance then get the Public IP Address of an instance from Azure Interface and put values into `./ansible/inventory/hosts`
+
+```
+vm-sonarqube-0 ansible_host=<PUBLIC_IP_ADDRESS>
+
+[sonarqube]
+vm-sonarqube-0
+
+[all:vars]
+ansible_connection=ssh
+ansible_user=centos
+ansible_ssh_pass=JUFDtKqHn8G2Nkgm4f
+```
+
+## Go to `ansible` directory, And execute ansible playbook to configure Sonaqute service. 
+```
+export ANSIBLE_CONFIG=.ansible.cfg
+ansible-playbook -i inventory/hosts install-sonarqube.yml -b -e "ansible_user=centos ansible_ssh_pass=JUFDtKqHn8G2Nkgm4f ansible_sudo_pass=JUFDtKqHn8G2Nkgm4f"
+```
+
+NOTE: `ansible_user`, `ansible_ssh_pass`, `ansible_sudo_pass` values are defined from terraform by `admin_username`, and `admin_password`

@@ -270,3 +270,9 @@
 
 - name: reload settings from all system configuration files
   shell: sysctl --system
+
+- name: Allow firewall custom TCP port
+  shell: firewall-cmd --zone=public --add-port=8080/tcp --permanent
+
+- name: Reload firewall configuration
+  shell: firewall-cmd --reload
