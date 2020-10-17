@@ -272,7 +272,7 @@
   shell: sysctl --system
 
 - name: Allow firewall custom TCP port
-  shell: firewall-cmd --zone=public --add-port=8080/tcp --permanent
+  shell: firewall-cmd --zone=public --add-port=9000/tcp --permanent
 
 - name: Reload firewall configuration
   shell: firewall-cmd --reload

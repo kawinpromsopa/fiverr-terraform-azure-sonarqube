@@ -58,7 +58,7 @@ admin_username = "centos"
 admin_password = "JUFDtKqHn8G2Nkgm4f"
 ```
 
-## Azure Authenticate and terraform init, apply
+### Azure authenticate and terraform init, apply
 
 ```
 az login
@@ -80,10 +80,18 @@ ansible_user=centos
 ansible_ssh_pass=JUFDtKqHn8G2Nkgm4f
 ```
 
-## Go to `ansible` directory, And execute ansible playbook to configure Sonaqute service. 
+### Go to `ansible` directory, And execute ansible playbook to configure Sonaqute service. 
 ```
 export ANSIBLE_CONFIG=.ansible.cfg
 ansible-playbook -i inventory/hosts install-sonarqube.yml -b -e "ansible_user=centos ansible_ssh_pass=JUFDtKqHn8G2Nkgm4f ansible_sudo_pass=JUFDtKqHn8G2Nkgm4f"
 ```
 
-NOTE: `ansible_user`, `ansible_ssh_pass`, `ansible_sudo_pass` values are defined from terraform by `admin_username`, and `admin_password`
+NOTE: `ansible_user`, `ansible_ssh_pass`, `ansible_sudo_pass` values are defined from terraform by values of `admin_username`, and `admin_password`
+
+
+### After ansible playbook configured access to website as below link:
+
+```
+http://<PUBLIC_IP_ADDRESS>:9000/sonarqube
+```
+
