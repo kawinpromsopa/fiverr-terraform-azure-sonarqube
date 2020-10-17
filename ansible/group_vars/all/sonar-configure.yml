@@ -1,0 +1,42 @@
+##
+## PostgreSQL Version
+##
+postgresql_version: 10
+
+##
+## PostgreSQL Create database
+##
+postgresql_databases:
+  - name: sonarqube_db
+    owner: sonarqube_user
+    encoding: "UTF8"
+
+##
+## PostgreSQL Create User
+##
+postgresql_users:
+  - name: sonarqube_user
+    pass: sonarqube_password
+
+##
+## Java Version
+##
+java_major_version: 11
+java_tarball_install: true
+transport: web
+transport_web: https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_linux-x64_bin.tar.gz
+
+
+##
+## SonarQube Configuration
+##
+sonar_configuration:
+  sonar:
+    web:
+      host: 0.0.0.0
+      port: 9000
+      context: /sonarqube
+    jdbc:
+      username: sonarqube_user
+      password: "sonarqube_password"
+      url: "jdbc:postgresql://localhost:5432/sonarqube_db"

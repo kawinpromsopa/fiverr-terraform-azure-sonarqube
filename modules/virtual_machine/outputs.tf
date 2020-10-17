@@ -17,3 +17,8 @@ output "availability_set_id" {
   description = "id of the availability set where the vms are provisioned."
   value       = "${azurerm_availability_set.default.id}"
 }
+
+output "public_ip_address" {
+  description = ""
+  value       = "${azurerm_public_ip.default.id}"
+}

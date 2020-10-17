@@ -27,3 +27,5 @@ variable "data_disk_size_gb" {}
 variable "admin_username" {}
 
 variable "admin_password" {}
+
+variable "security_group_name" {}

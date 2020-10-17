@@ -12,7 +12,7 @@ subnet_names = ["sonarqube_subnet"]
 
 virtual_machine_count = 1
 
-virtual_machine_name = "vm-sonarqub"
+virtual_machine_name = "vm-sonarqube"
 
 vm_size = "Standard_DS1_v2"
 
@@ -20,11 +20,13 @@ publisher = "RedHat"
 
 offer = "RHEL"
 
-sku = "8"
+sku = "7.5"
 
-data_disk_size_gb = "50"
+data_disk_size_gb = "15"
 
 admin_username = "centos"
 
 ## Password must be between 6-72 characters long and must satisfy at least 3
 admin_password = "JUFDtKqHn8G2Nkgm4f"
+
+security_group_name = "network-sg"

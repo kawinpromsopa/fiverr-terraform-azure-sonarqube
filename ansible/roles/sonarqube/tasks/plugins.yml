@@ -1,0 +1,126 @@
+---
+- name: Ensure plugins folder exists.
+  file:
+    path: /usr/local/sonar/extensions/plugins
+    state: directory
+
+#
+# The uri module did not work for any of these usecases when testing with
+# ansible 2.8.1
+#
+
+- name: Official plugins.
+  block:
+
+  - name: Get the list of installed plugins.
+    uri:
+      url: "{{ sonar_api_base_url }}/plugins/installed"
+      url_username: "{{ sonar_token }}"
+      url_password: ""
+      use_proxy: no
+      force_basic_auth: yes
+    register: installed
+
+  - name: Ensure unwanted plugins are removed.
+    uri:
+      url: "{{ sonar_api_base_url }}/plugins/uninstall"
+      url_username: "{{ sonar_token }}"
+      url_password: ""
+      use_proxy: no
+      force_basic_auth: yes
+      method: POST
+      body: "key={{ plugin.key }}"
+      body_format: form-urlencoded
+      status_code: 204
+    loop: "{{ installed.json['plugins'] }}"
+    loop_control:
+      loop_var: plugin
+      label: "{{ plugin.name }}"
+    register: __sonar_plugin_operation
+    changed_when: '__sonar_plugin_operation.status == 204'
+    when:
+    - "plugin.name in sonar_plugins | json_query('[?state == `absent`].name')"
+    notify: restart sonar
+
+  # Apparently doesn't include already installed plugins, which is neat.
+  - name: Get the list of installed plugins.
+    uri:
+      url: "{{ sonar_api_base_url }}/plugins/available"
+      url_username: "{{ sonar_token }}"
+      url_password: ""
+      use_proxy: no
+      force_basic_auth: yes
+    register: available
+
+  - name: Ensure plugins are installed.
+    uri:
+      url: "{{ sonar_api_base_url }}/plugins/install"
+      url_username: "{{ sonar_token }}"
+      url_password: ""
+      use_proxy: no
+      force_basic_auth: yes
+      method: POST
+      body: "key={{ plugin.key }}"
+      body_format: form-urlencoded
+      status_code: 204
+    loop: "{{ available.json['plugins'] }}"
+    loop_control:
+      loop_var: plugin
+      label: "{{ plugin.name }}"
+    register: __sonar_plugin_operation
+    changed_when: '__sonar_plugin_operation.status == 204'
+    when:
+    - "plugin.name in sonar_plugins | json_query('[?state != `absent`].name')"
+    notify: restart sonar
+
+  - name: Get the list of plugins needing an update.
+    uri:
+      url: "{{ sonar_api_base_url }}/plugins/updates"
+      url_username: "{{ sonar_token }}"
+      url_password: ""
+      use_proxy: no
+      force_basic_auth: yes
+    register: updates
+
+  - include_tasks: plugin_update.yml
+    loop: "{{ updates.json['plugins'] }}"
+    loop_control:
+      loop_var: plugin
+      label: "{{ plugin.name }}"
+
+  when:
+    - sonar_token != ""
+
+- name: Verify the status of community plugins.
+  stat:
+    path: "/usr/local/sonar/extensions/plugins/{{ plugin.url | urlsplit('path') | basename }}"
+  loop: "{{ sonar_community_plugins }}"
+  loop_control:
+    loop_var: plugin
+    label: "{{ plugin.name }}"
+  register: community_plugins
+
+- name: Remove unwanted community plugin.
+  file:
+    path: "/usr/local/sonar/extensions/plugins/{{ plugin.url | urlsplit('path') | basename }}"
+    state: absent
+  when:
+  - "plugin.state is defined"
+  - "plugin.state == 'absent'"
+  loop: "{{ sonar_community_plugins }}"
+  loop_control:
+    loop_var: plugin
+    label: "{{ plugin.name }}"
+  notify: restart sonar
+
+- name: Download community plugin.
+  get_url:
+    url: "{{ item['plugin']['url'] }}"
+    dest: /usr/local/sonar/extensions/plugins/
+  when:
+  - "not item['stat']['exists']"
+  - "(item['plugin']['state'] is not defined or (item['plugin']['state'] is defined and item['plugin']['state'] != 'absent'))"
+  loop: "{{ community_plugins.results }}"
+  loop_control:
+    label: "{{ item['plugin']['name'] }}"
+  notify: restart sonar

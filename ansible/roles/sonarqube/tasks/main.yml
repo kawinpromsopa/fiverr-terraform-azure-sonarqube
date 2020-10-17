@@ -1,0 +1,272 @@
+---
+- assert:
+    that:
+      - sonar_install_method == "link" or sonar_install_method == "copy"
+    fail_msg: "'sonar_install_method' should be either 'copy' or 'link', not '{{ sonar_install_method }}'"
+
+- assert:
+    that:
+      - sonar_token != ""
+    fail_msg: "'sonar_token' should be defined to be able to use 'sonar_version=latest'"
+  when: sonar_version == "latest"
+
+- name: Ensure sonar group is created.
+  group:
+    name: "{{ sonar_group }}"
+
+- name: Ensure sonar user is created.
+  user:
+    name: "{{ sonar_user }}"
+    group: "{{ sonar_group }}"
+    createhome: false
+
+- block:
+    - name: Check if a new release is available
+      uri:
+        url: "{{ sonar_api_base_url }}/system/upgrades"
+        url_username: "{{ sonar_token }}"
+        url_password: ""
+        use_proxy: no
+        force_basic_auth: yes
+      register: __sonar_versions
+
+    - set_fact:
+        __sonar_versions: '{{ __sonar_versions.json.upgrades }}'
+
+    - name: Select the next release
+      set_fact:
+        __sonar_versions: '{{ __sonar_versions | sort(attribute="version") | first }}'
+      when: __sonar_versions != []
+
+    - name: Extract the file name from the download link
+      set_fact:
+        __sonar_version: "{{ __sonar_versions['downloadUrl'] | urlsplit('path') | basename | splitext | first }}"
+      when: __sonar_versions != []
+
+    - name: Extract the version number for the file name
+      set_fact:
+        sonar_version: "{{ __sonar_version.split('-') | last }}"
+      when: __sonar_versions != []
+
+  when: sonar_version == "latest"
+
+- name: Ensure Sonar application is already in the requested version.
+  stat:
+    path: "/usr/local/sonar/lib/sonar-application-{{ sonar_version }}.jar"
+  register: sonar_application_version
+
+- block:
+    - name: Download Sonar.
+      get_url:
+        url: "{{ sonar_download_url }}"
+        dest: "{{ workspace }}/{{ sonar_version_directory }}.zip"
+        validate_certs: "{{ sonar_download_validate_certs }}"
+
+    - name: Unzip Sonar.
+      unarchive:
+        src: "{{ workspace }}/{{ sonar_version_directory }}.zip"
+        dest: /usr/local/
+        remote_src: yes
+        creates: "/usr/local/{{ sonar_version_directory }}/lib/sonar-application-{{ sonar_version }}.jar"
+
+    - name: Ensure Sonar application is not already installed in another version.
+      find:
+        path: "/usr/local/sonar/lib/"
+        patterns: "sonar-application-*.jar"
+        file_type: file
+      register: sonar_application_other_version
+
+    - name: Stop Sonar for the upgrade
+      service:
+        name: sonar
+        state: stopped
+      when: sonar_application_other_version.matched
+
+    - name: Ensure /usr/local/sonar is a directory.
+      file:
+        path: /usr/local/sonar
+        state: directory
+      when: sonar_install_method == 'copy'
+
+    - name: Look for files and folders in /usr/local/sonar/
+      find:
+        path: /usr/local/sonar
+        depth: "1"
+        file_type: any
+      register: __sonar_leftovers
+      when:
+        - sonar_install_method == 'copy'
+        - sonar_application_other_version.matched
+
+    - name: Clean /usr/local/sonar/
+      file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{  __sonar_leftovers.files}}"
+      loop_control:
+        label: "{{ item.path | basename }}"
+      when:
+        - sonar_install_method == 'copy'
+        - sonar_application_other_version.matched
+
+    - name: Move Sonar into place.
+      copy:
+        src: "/usr/local/{{ sonar_version_directory }}/"
+        dest: "/usr/local/sonar"
+        remote_src: true
+      when: sonar_install_method == 'copy'
+
+    - name: Clean the source folder.
+      file:
+        path: /usr/local/{{ sonar_version_directory }}
+        state: absent
+      when: sonar_install_method == 'copy'
+
+    - name: Ensure ownership of SonarQube objects.
+      file:
+        path: /usr/local/sonar
+        owner: "{{ sonar_user }}"
+        group: "{{ sonar_group }}"
+        recurse: true
+      when: sonar_install_method == 'copy'
+
+    - name: Add sonar symlink to the installed version.
+      file:
+        src: "/usr/local/{{ sonar_version_directory }}"
+        dest: /usr/local/sonar
+        state: link
+      when: sonar_install_method == 'link'
+
+    - name: Ensure ownership of SonarQube objects.
+      file:
+        path: "/usr/local/{{ sonar_version_directory }}"
+        owner: "{{ sonar_user }}"
+        group: "{{ sonar_group }}"
+        recurse: true
+      when: sonar_install_method == 'link'
+
+  when:
+    - not sonar_application_version.stat.exists
+    - sonar_version != "latest" # No newer release exists
+
+- name: Ensure sonar doesn't run as root.
+  lineinfile:
+    path: /usr/local/sonar/bin/linux-x86-64/sonar.sh
+    regexp: '^#(RUN_AS_USER)='
+    line: '\1={{ sonar_user }}'
+    backrefs: yes
+
+- name: Symlink sonar bin.
+  file:
+    src: /usr/local/sonar/bin/linux-x86-64/sonar.sh
+    dest: /usr/bin/sonar
+    state: link
+
+- name: Add sonar as init script for service management.
+  file:
+    src: /usr/local/sonar/bin/linux-x86-64/sonar.sh
+    dest: /etc/init.d/sonar
+    state: link
+  when: "ansible_service_mgr != 'systemd'"
+
+- name: Copy SonarQube systemd unit file into place (for systemd systems).
+  template:
+    src: sonar.unit.j2
+    dest: /etc/systemd/system/sonar.service
+    owner: root
+    group: root
+    mode: 0755
+  when: "ansible_service_mgr == 'systemd'"
+  notify: Reload systemd
+
+- name: Ensure vm.max_map_count is set according to ElasticSearch's preference.
+  sysctl:
+    name: vm.max_map_count
+    value: "262144"
+
+- name: Ensure Sonar configuration file is installed
+  template:
+    src: sonar.properties.j2
+    dest: /usr/local/sonar/conf/sonar.properties
+    owner: "{{ sonar_user }}"
+    group: "{{ sonar_group }}"
+    mode: 0600
+  notify: restart sonar
+
+- name: Post-upgrade.
+  block:
+    - name: Start sonar after the upgrade.
+      service:
+        name: sonar
+        state: started
+
+    - name: Make sure sonar is responding on the configured port.
+      wait_for:
+        port: "9000"
+        delay: "3"
+        timeout: "300"
+
+    - name: Check if database migration is needed
+      uri:
+        url: "{{ sonar_api_base_url }}/system/status"
+      register: __sonar_status_result
+
+    - name: Migrate database
+      uri:
+        url: "{{ sonar_api_base_url }}/system/migrate_db"
+        method: POST
+      when:
+        - __sonar_status_result.json.status is defined
+        - __sonar_status_result.json.status == "DB_MIGRATION_NEEDED"
+
+    - name: Wait until the end of the migration
+      uri:
+        url: "{{ sonar_api_base_url }}/system/db_migration_status"
+      register: __sonar_migrate_result
+      until: __sonar_migrate_result.json.state == "MIGRATION_SUCCEEDED" or __sonar_migrate_result.json.state == "NO_MIGRATION"
+      failed_when: __sonar_migrate_result.json.state == "MIGRATION_FAILED"
+      retries: "120"
+      delay: "5"
+      when:
+        - __sonar_status_result.json.status is defined
+        - __sonar_status_result.json.status == "DB_MIGRATION_NEEDED"
+
+    - name: Ensure Sonar is started.
+      wait_for:
+        path: /usr/local/sonar/logs/sonar.log
+        delay: 10
+        search_regex: 'SonarQube is up'
+
+  when:
+    - not sonar_application_version.stat.exists
+    - sonar_application_other_version is defined
+    - sonar_application_other_version.matched is defined
+    - sonar_application_other_version.matched != 0
+
+- include: plugins.yml
+
+- name: Ensure Sonar is running and set to start on boot.
+  service:
+    name: sonar
+    state: started
+    enabled: yes
+
+- name: Clean workspace.
+  file:
+    path: "{{ workspace }}/{{ sonar_version_directory }}.zip"
+    state: absent
+
+- name: configure system settings, file descriptors and number of threads
+  pam_limits:
+    domain: sonar
+    limit_type: "{{item.limit_type}}"
+    limit_item: "{{item.limit_item}}"
+    value: "{{item.value}}"
+  with_items:
+    - { limit_type: '-', limit_item: 'nofile', value: 65536 }
+    - { limit_type: '-', limit_item: 'nproc', value: 65536 }
+    - { limit_type: 'soft', limit_item: 'memlock', value: unlimited }
+    - { limit_type: 'hard', limit_item: 'memlock', value: unlimited }
+
+- name: reload settings from all system configuration files
+  shell: sysctl --system

@@ -1,0 +1,27 @@
+---
+workspace: /tmp
+sonar_download_validate_certs: true
+
+# Default to the latest LTS release.
+sonar_version: "7.9"
+sonar_download_url: "https://binaries.sonarsource.com/Distribution/sonarqube/sonarqube-{{ sonar_version }}.zip"
+sonar_version_directory: "sonarqube-{{ sonar_version }}"
+
+sonar_user: sonar
+sonar_group: "{{ sonar_user }}"
+
+# Default: copy - Values: copy, link
+sonar_install_method: "copy"
+sonar_token: ""
+sonar_plugins: []
+sonar_community_plugins: []
+
+sonar_configuration:
+  sonar:
+    web:
+      host: 0.0.0.0
+      port: 9000
+    jdbc:
+      url: "jdbc:mysql://localhost:3306/sonar"
+
+sonar_api_base_url: "http://localhost:{{ sonar_configuration.sonar.web.port }}{{ sonar_configuration.sonar.web.context | default('') }}/api"
